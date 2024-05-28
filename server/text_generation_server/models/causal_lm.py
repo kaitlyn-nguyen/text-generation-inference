@@ -16,7 +16,7 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
-
+import os
 tracer = trace.get_tracer(__name__)
 
 
@@ -506,18 +506,51 @@ class CausalLM(Model):
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
-        model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            revision=revision,
-            torch_dtype=dtype,
-            device_map=(
-                "auto"
-                if torch.cuda.is_available() and torch.cuda.device_count() > 1
-                else None
-            ),
-            load_in_8bit=quantize == "bitsandbytes",
-            trust_remote_code=trust_remote_code,
+        from transformers import AutoConfig
+        model_config = AutoConfig.from_pretrained(
+            model_id
         )
+        use_fms_implementation = eval(os.environ.get("FMS_IMPLEMENTATION", "False"))
+        if use_fms_implementation:
+            from fms.models import get_model
+            from fms.models.hf import to_hf_api
+            # todo: we need to infer these arguments based on the model config, for now using llama 7b (granite-7b-instruct)
+            fms_model = get_model(
+                "llama", # assume llama for now
+                "7b",
+                model_id,
+                source="hf",
+                device_type=device.type,
+                src_vocab_size=32008,
+            )
+            model = (
+                to_hf_api(
+                    fms_model,
+                    pad_token_id=model_config.pad_token_id,
+                    bos_token_id=model_config.bos_token_id,
+                    eos_token_id=model_config.eos_token_id,
+                )
+                .requires_grad_(False)
+                .eval()
+            )
+            use_torch_compile = eval(os.environ.get("FMS_TORCH_COMPILE", "False"))
+            if use_torch_compile:
+                # todo: we will need to do model warming up
+                model.forward = torch.compile(model.forward)
+            print("USING FMS MODEL")
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                revision=revision,
+                torch_dtype=dtype,
+                device_map=(
+                    "auto"
+                    if torch.cuda.is_available() and torch.cuda.device_count() > 1
+                    else None
+                ),
+                load_in_8bit=quantize == "bitsandbytes",
+                trust_remote_code=trust_remote_code,
+            )
         if (
             torch.cuda.is_available()
             and torch.cuda.device_count() == 1

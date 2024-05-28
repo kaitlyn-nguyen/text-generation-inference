@@ -568,6 +568,7 @@ def get_model(
             )
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
+        FLASH_ATTENTION = False
         if FLASH_ATTENTION:
             return FlashLlama(
                 model_id,
