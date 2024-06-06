@@ -515,28 +515,28 @@ class CausalLM(Model):
             from fms.models import get_model
             from fms.models.hf import to_hf_api
             # todo: we need to infer these arguments based on the model config, for now using llama 7b (granite-7b-instruct)
-            fms_model = get_model(
+            model = get_model(
                 "llama", # assume llama for now
                 "7b",
                 model_id,
                 source="hf",
                 device_type=device.type,
-                src_vocab_size=32008,
-            )
-            model = (
-                to_hf_api(
-                    fms_model,
-                    pad_token_id=model_config.pad_token_id,
-                    bos_token_id=model_config.bos_token_id,
-                    eos_token_id=model_config.eos_token_id,
-                )
-                .requires_grad_(False)
-                .eval()
-            )
+            ).eval()
+            # model = (
+            #     to_hf_api(
+            #         fms_model,
+            #         pad_token_id=model_config.pad_token_id,
+            #         bos_token_id=model_config.bos_token_id,
+            #         eos_token_id=model_config.eos_token_id,
+            #     )
+            #     .requires_grad_(False)
+            #     .eval()
+            # )
+            torch.set_grad_enabled(False)
             use_torch_compile = eval(os.environ.get("FMS_TORCH_COMPILE", "False"))
             if use_torch_compile:
                 # todo: we will need to do model warming up
-                model.forward = torch.compile(model.forward)
+                model.forward = torch.compile(model.forward, backend="sendnn_decoder")
             print("USING FMS MODEL")
         else:
             model = AutoModelForCausalLM.from_pretrained(
@@ -559,10 +559,10 @@ class CausalLM(Model):
             model = model.cuda()
 
         if tokenizer.pad_token_id is None:
-            if model.config.pad_token_id is not None:
-                tokenizer.pad_token_id = model.config.pad_token_id
-            elif model.config.eos_token_id is not None:
-                tokenizer.pad_token_id = model.config.eos_token_id
+            if model_config.pad_token_id is not None:
+                tokenizer.pad_token_id = model_config.pad_token_id
+            elif model_config.eos_token_id is not None:
+                tokenizer.pad_token_id = model_config.eos_token_id
             elif tokenizer.eos_token_id is not None:
                 tokenizer.pad_token_id = tokenizer.eos_token_id
             else:
@@ -592,21 +592,22 @@ class CausalLM(Model):
     ]:
         # Model Forward
         kwargs = {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "past_key_values": past_key_values,
+            "x": input_ids,
+            "past_key_value_states": past_key_values,
             "use_cache": True,
-            "return_dict": True,
         }
-        if self.has_position_ids:
-            kwargs["position_ids"] = position_ids
 
-        outputs = self.model.forward(**kwargs)
-        if isinstance(outputs, tuple):
-            outputs, speculative_logits = outputs
+        if past_key_values is None:
+            is_pad = input_ids == 0
+            mask = is_pad.unsqueeze(-1) == is_pad.unsqueeze(-2)
+            kwargs['mask'] = mask.tril(diagonal=0)
         else:
-            speculative_logits = None
-        return outputs.logits, speculative_logits, outputs.past_key_values
+            is_not_pad = torch.ones(1, past_key_values[0][0].size(2) + 1, device=input_ids.device)
+            kwargs['mask'] = is_not_pad.unsqueeze(-2)
+
+        kwargs['position_ids'] = None
+        logits, past_key_values = self.model.forward(**kwargs)
+        return logits, None, past_key_values
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(
