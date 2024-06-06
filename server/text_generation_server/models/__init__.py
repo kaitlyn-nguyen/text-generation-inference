@@ -12,17 +12,17 @@ from pathlib import Path
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
-from text_generation_server.models.flash_causal_lm import FlashCausalLM
-from text_generation_server.models.bloom import BLOOMSharded
-from text_generation_server.models.mpt import MPTSharded
-from text_generation_server.models.seq2seq_lm import Seq2SeqLM
-from text_generation_server.models.rw import RW
-from text_generation_server.models.opt import OPTSharded
-from text_generation_server.models.galactica import GalacticaSharded
-from text_generation_server.models.santacoder import SantaCoder
-from text_generation_server.models.t5 import T5Sharded
-from text_generation_server.models.gpt_neox import GPTNeoxSharded
-from text_generation_server.models.phi import Phi
+#from text_generation_server.models.flash_causal_lm import FlashCausalLM
+#from text_generation_server.models.bloom import BLOOMSharded
+#from text_generation_server.models.mpt import MPTSharded
+#from text_generation_server.models.seq2seq_lm import Seq2SeqLM
+#from text_generation_server.models.rw import RW
+#from text_generation_server.models.opt import OPTSharded
+#from text_generation_server.models.galactica import GalacticaSharded
+#from text_generation_server.models.santacoder import SantaCoder
+#from text_generation_server.models.t5 import T5Sharded
+#from text_generation_server.models.gpt_neox import GPTNeoxSharded
+#from text_generation_server.models.phi import Phi
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.

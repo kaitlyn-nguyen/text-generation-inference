@@ -514,6 +514,7 @@ class CausalLM(Model):
         if use_fms_implementation:
             from fms.models import get_model
             from fms.models.hf import to_hf_api
+            torch.set_default_dtype(torch.bfloat16)
             # todo: we need to infer these arguments based on the model config, for now using llama 7b (granite-7b-instruct)
             fms_model = get_model(
                 "llama", # assume llama for now
@@ -521,8 +522,14 @@ class CausalLM(Model):
                 model_id,
                 source="hf",
                 device_type=device.type,
-                src_vocab_size=32008,
             )
+            from float8_experimental.float8_linear import Float8SWLinear
+            from float8_experimental.float8_linear_utils import (
+                swap_linear_with_float8_linear,
+            )
+            skip_fqn_list = [f"layers.{i}.ff_sub_layer.w2" for i in [1, 30]] + ["shared.head"]
+            fms_model = swap_linear_with_float8_linear(fms_model, Float8SWLinear, skip_fqn_list=skip_fqn_list)
+            # fms_model = swap_linear_with_float8_linear(fms_model, Float8SWLinear)
             model = (
                 to_hf_api(
                     fms_model,
