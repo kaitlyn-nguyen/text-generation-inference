@@ -592,7 +592,7 @@ class CausalLM(Model):
     ]:
         # Model Forward
         kwargs = {
-            "x": input_ids,
+            "input_ids": input_ids,
             "past_key_value_states": past_key_values,
             "use_cache": True,
         }
