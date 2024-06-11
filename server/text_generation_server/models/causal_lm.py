@@ -486,8 +486,8 @@ class CausalLM(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-        if speculator:
-            raise RuntimeError("Speculator decoding is not enabled for AutoModel")
+        # if speculator:
+        #     raise RuntimeError("Speculator decoding is not enabled for AutoModel")
 
         if torch.cuda.is_available():
             device = torch.device("cuda")
